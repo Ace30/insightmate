@@ -6,9 +6,10 @@ import {
   CloudArrowUpIcon, 
   ChartBarIcon, 
   ChatBubbleLeftRightIcon,
-  Cog6ToothIcon,
+  LightBulbIcon,
   Bars3Icon,
-  XMarkIcon
+  XMarkIcon,
+  PresentationChartLineIcon
 } from '@heroicons/react/24/outline';
 import { useState } from 'react';
 
@@ -25,6 +26,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     { name: 'Upload', href: '/upload', icon: CloudArrowUpIcon },
     { name: 'Dashboard', href: '/dashboard', icon: ChartBarIcon },
     { name: 'Analysis', href: '/analysis', icon: ChartBarIcon },
+    { name: 'Visualization', href: '/visualization', icon: PresentationChartLineIcon },
+    { name: 'Insights', href: '/insights', icon: LightBulbIcon },
     { name: 'Chat', href: '/chat', icon: ChatBubbleLeftRightIcon },
   ];
 

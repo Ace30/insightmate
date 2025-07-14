@@ -1,6 +1,6 @@
 import pandas as pd
 import numpy as np
-from typing import Dict, Any, List, Tuple
+from typing import Dict, Any, List, Tuple, Optional
 import json
 import logging
 from datetime import datetime
@@ -10,6 +10,7 @@ from sklearn.decomposition import PCA
 import plotly.graph_objects as go
 import plotly.express as px
 from plotly.subplots import make_subplots
+from services.nlg_service import NLGService
 
 logger = logging.getLogger(__name__)
 
@@ -18,6 +19,7 @@ class AnalysisService:
     
     def __init__(self):
         self.analysis_cache = {}
+        self.nlg_service = NLGService()
     
     def analyze_data(self, df: pd.DataFrame) -> Dict[str, Any]:
         """Perform comprehensive data analysis"""
@@ -369,6 +371,20 @@ class AnalysisService:
         except Exception as e:
             logger.error(f"Error generating insights: {str(e)}")
             return []
+    
+    def generate_natural_language_insights(self, df: pd.DataFrame, analysis_results: Dict[str, Any], user_query: Optional[str] = None) -> Dict[str, Any]:
+        """Generate natural language insights using NLG service"""
+        try:
+            return self.nlg_service.generate_insights(df, analysis_results, user_query)
+        except Exception as e:
+            logger.error(f"Error generating natural language insights: {str(e)}")
+            return {
+                "summary": "I analyzed your data and found interesting patterns.",
+                "detailed_insights": ["The analysis revealed several important patterns in your data."],
+                "recommendations": ["Consider exploring specific aspects of your data with targeted questions."],
+                "visualization_suggestions": ["summary_chart"],
+                "error": str(e)
+            }
     
     def create_charts_data(self, df: pd.DataFrame, analysis_results: Dict[str, Any]) -> Dict[str, Any]:
         """Create comprehensive visualization data"""

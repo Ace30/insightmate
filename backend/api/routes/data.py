@@ -128,7 +128,8 @@ async def analyze_data(filename: str):
             "analysis_results": analysis_results,
             "insights": insights,
             "charts_data": charts_data,
-            "data_summary": data_summary
+            "data_summary": data_summary,
+            "raw_data": cleaned_df.to_dict('records')
         })
     except Exception as e:
         import traceback
@@ -180,4 +181,84 @@ async def delete_file(filename: str):
         })
         
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to delete file: {str(e)}") 
+        raise HTTPException(status_code=500, detail=f"Failed to delete file: {str(e)}")
+
+@router.get("/file-data/{filename}")
+async def get_file_data(filename: str, limit: int = 1000):
+    """
+    Get raw data from uploaded file
+    """
+    try:
+        file_path = Path("uploads") / filename
+        if not file_path.exists():
+            raise HTTPException(status_code=404, detail="File not found")
+        
+        # Read data
+        df = data_service.read_file(file_path)
+        
+        # Limit the data to prevent memory issues
+        if len(df) > limit:
+            df = df.head(limit)
+        
+        # Convert to records for JSON serialization
+        data = df.to_dict('records')
+        
+        return JSONResponse(content={
+            "message": "File data retrieved successfully",
+            "data": data,
+            "total_rows": len(df),
+            "columns": df.columns.tolist(),
+            "data_types": df.dtypes.astype(str).to_dict()
+        })
+        
+    except Exception as e:
+        import traceback
+        tb = traceback.format_exc()
+        raise HTTPException(status_code=500, detail=f"Failed to get file data: {str(e)}\nTraceback:\n{tb}")
+
+@router.post("/analyze/{filename}/insights")
+async def generate_insights(filename: str, user_query: str = ""):
+    """
+    Generate natural language insights from data analysis
+    """
+    try:
+        file_path = Path("uploads") / filename
+        if not file_path.exists():
+            raise HTTPException(status_code=404, detail="File not found")
+        
+        # Read data
+        df = data_service.read_file(file_path)
+        
+        # Clean data using AI agent
+        cleaned_df, cleaning_report = cleaning_agent.clean_data(df)
+        
+        # Perform comprehensive analysis
+        analysis_results = analysis_service.analyze_data(cleaned_df)
+        
+        # Generate natural language insights
+        nlg_insights = analysis_service.generate_natural_language_insights(
+            cleaned_df, analysis_results, user_query
+        )
+        
+        # Create visualization data
+        charts_data = analysis_service.create_charts_data(cleaned_df, analysis_results)
+        
+        # Convert all outputs to pure Python types for JSON serialization
+        analysis_results = analysis_service._convert_numpy_to_python(analysis_results)
+        charts_data = analysis_service._convert_numpy_to_python(charts_data)
+        cleaning_report = analysis_service._convert_numpy_to_python(cleaning_report)
+        
+        return JSONResponse(content={
+            "message": "Natural language insights generated successfully",
+            "nlg_insights": nlg_insights,
+            "analysis_results": analysis_results,
+            "charts_data": charts_data,
+            "cleaning_report": cleaning_report,
+            "user_query": user_query,
+            "raw_data": cleaned_df.to_dict('records')
+        })
+        
+    except Exception as e:
+        import traceback
+        tb = traceback.format_exc()
+        raise HTTPException(status_code=500, detail=f"Insights generation failed: {str(e)}\nTraceback:\n{tb}") 

@@ -2,6 +2,7 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { ChartBarIcon, ArrowTrendingUpIcon, DocumentChartBarIcon } from '@heroicons/react/24/outline';
 import { useData } from '../contexts/DataContext';
+import DataVisualization from '../components/DataVisualization';
 
 const DashboardPage: React.FC = () => {
   const { state } = useData();
@@ -89,15 +90,15 @@ const DashboardPage: React.FC = () => {
                 <div className="space-y-3">
                   <div className="flex justify-between">
                     <span className="text-gray-600">Total Records</span>
-                    <span className="font-semibold">{dataSummary?.total_rows || 'N/A'}</span>
+                    <span className="font-semibold text-blue-600">{dataSummary?.total_rows || 'N/A'}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-gray-600">Columns</span>
-                    <span className="font-semibold">{dataSummary?.total_columns || 'N/A'}</span>
+                    <span className="font-semibold text-green-600">{dataSummary?.total_columns || 'N/A'}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-gray-600">Missing Values</span>
-                    <span className="font-semibold">
+                    <span className="font-semibold text-orange-600">
                       {dataSummary?.missing_values ? 
                         Object.values(dataSummary.missing_values as Record<string, number>).reduce((a: number, b: number) => a + b, 0) : 
                         'N/A'
@@ -197,7 +198,7 @@ const DashboardPage: React.FC = () => {
               </motion.div>
             )}
 
-            {/* Chart Placeholder */}
+            {/* Data Visualization */}
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -205,9 +206,10 @@ const DashboardPage: React.FC = () => {
               className="mt-8 bg-white rounded-2xl shadow-lg p-6 border border-gray-100"
             >
               <h3 className="text-xl font-semibold text-gray-900 mb-4">Data Visualization</h3>
-              <div className="h-64 bg-gray-50 rounded-xl flex items-center justify-center">
-                <p className="text-gray-500">Charts and visualizations will appear here</p>
-              </div>
+              <DataVisualization 
+                analysisData={analysisResults?.analysis_results} 
+                dataSummary={dataSummary} 
+              />
             </motion.div>
           </>
         )}

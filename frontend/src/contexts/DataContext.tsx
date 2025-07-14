@@ -19,6 +19,15 @@ export interface AnalysisResult {
   insights: any[];
   charts_data: any;
   data_summary: any;
+  raw_data?: any[];
+}
+
+export interface NLGInsights {
+  summary: string;
+  detailed_insights: string[];
+  recommendations: string[];
+  visualization_suggestions: string[];
+  query_specific_insights?: string;
 }
 
 export interface ChatMessage {
@@ -34,6 +43,7 @@ interface DataState {
   files: DataFile[];
   currentFile: DataFile | null;
   analysisResults: AnalysisResult | null;
+  nlgInsights: NLGInsights | null;
   chatHistory: ChatMessage[];
   isLoading: boolean;
   error: string | null;
@@ -46,6 +56,7 @@ type DataAction =
   | { type: 'SET_FILES'; payload: DataFile[] }
   | { type: 'SET_CURRENT_FILE'; payload: DataFile | null }
   | { type: 'SET_ANALYSIS_RESULTS'; payload: AnalysisResult }
+  | { type: 'SET_NLG_INSIGHTS'; payload: NLGInsights }
   | { type: 'ADD_CHAT_MESSAGE'; payload: ChatMessage }
   | { type: 'CLEAR_CHAT_HISTORY' }
   | { type: 'RESET_STATE' };
@@ -54,6 +65,7 @@ const initialState: DataState = {
   files: [],
   currentFile: null,
   analysisResults: null,
+  nlgInsights: null,
   chatHistory: [],
   isLoading: false,
   error: null,
@@ -83,6 +95,9 @@ function dataReducer(state: DataState, action: DataAction): DataState {
     case 'SET_ANALYSIS_RESULTS':
       return { ...state, analysisResults: action.payload };
     
+    case 'SET_NLG_INSIGHTS':
+      return { ...state, nlgInsights: action.payload };
+    
     case 'ADD_CHAT_MESSAGE':
       return { 
         ...state, 
@@ -105,6 +120,8 @@ interface DataContextType {
   dispatch: React.Dispatch<DataAction>;
   uploadFile: (file: File) => Promise<void>;
   analyzeFile: (filename: string) => Promise<void>;
+  getFileData: (filename: string) => Promise<any[]>;
+  generateNLGInsights: (filename: string, userQuery: string) => Promise<void>;
   sendChatMessage: (message: string) => Promise<void>;
   clearChatHistory: () => void;
   resetState: () => void;
@@ -236,6 +253,45 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
     }
   };
 
+  const generateNLGInsights = async (filename: string, userQuery: string) => {
+    try {
+      dispatch({ type: 'SET_LOADING', payload: true });
+      dispatch({ type: 'SET_ERROR', payload: null });
+
+      console.log('Generating NLG insights for file:', filename, 'with query:', userQuery);
+
+      const response = await fetch(`/api/data/analyze/${filename}/insights`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          user_query: userQuery,
+        }),
+      });
+
+      console.log('NLG insights response status:', response.status);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('NLG insights failed with status:', response.status);
+        console.error('Error response:', errorText);
+        throw new Error(`NLG insights failed: ${response.status} ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      console.log('NLG insights successful, response data:', data);
+      
+      dispatch({ type: 'SET_NLG_INSIGHTS', payload: data.nlg_insights });
+    } catch (error) {
+      console.error('NLG insights error in DataContext:', error);
+      dispatch({ type: 'SET_ERROR', payload: error instanceof Error ? error.message : 'NLG insights failed' });
+      throw error; // Re-throw to be caught by the component
+    } finally {
+      dispatch({ type: 'SET_LOADING', payload: false });
+    }
+  };
+
   const sendChatMessage = async (message: string) => {
     try {
       dispatch({ type: 'SET_LOADING', payload: true });
@@ -279,6 +335,39 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
     dispatch({ type: 'CLEAR_CHAT_HISTORY' });
   };
 
+  const getFileData = async (filename: string) => {
+    try {
+      dispatch({ type: 'SET_LOADING', payload: true });
+      dispatch({ type: 'SET_ERROR', payload: null });
+
+      console.log('Fetching file data for:', filename);
+
+      const response = await fetch(`/api/data/file-data/${filename}`, {
+        method: 'GET',
+      });
+
+      console.log('File data response status:', response.status);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('File data fetch failed with status:', response.status);
+        console.error('Error response:', errorText);
+        throw new Error(`File data fetch failed: ${response.status} ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      console.log('File data fetch successful, response data:', data);
+      
+      return data.data || [];
+    } catch (error) {
+      console.error('File data fetch error in DataContext:', error);
+      dispatch({ type: 'SET_ERROR', payload: error instanceof Error ? error.message : 'File data fetch failed' });
+      throw error; // Re-throw to be caught by the component
+    } finally {
+      dispatch({ type: 'SET_LOADING', payload: false });
+    }
+  };
+
   const resetState = () => {
     dispatch({ type: 'RESET_STATE' });
   };
@@ -288,6 +377,8 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
     dispatch,
     uploadFile,
     analyzeFile,
+    getFileData,
+    generateNLGInsights,
     sendChatMessage,
     clearChatHistory,
     resetState,

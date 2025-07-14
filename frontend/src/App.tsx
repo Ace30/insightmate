@@ -10,6 +10,8 @@ import DashboardPage from './pages/DashboardPage';
 import UploadPage from './pages/UploadPage';
 import AnalysisPage from './pages/AnalysisPage';
 import ChatPage from './pages/ChatPage';
+import NaturalLanguageInsightsPage from './pages/NaturalLanguageInsightsPage';
+import InteractiveVisualizationPage from './pages/InteractiveVisualizationPage';
 
 // Context
 import { DataProvider } from './contexts/DataContext';
@@ -85,6 +87,32 @@ const App: React.FC = () => {
                 >
                   <Layout>
                     <ChatPage />
+                  </Layout>
+                </motion.div>
+              } />
+              
+              <Route path="/insights" element={
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -20 }}
+                  transition={{ duration: 0.5 }}
+                >
+                  <Layout>
+                    <NaturalLanguageInsightsPage />
+                  </Layout>
+                </motion.div>
+              } />
+              
+              <Route path="/visualization" element={
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -20 }}
+                  transition={{ duration: 0.5 }}
+                >
+                  <Layout>
+                    <InteractiveVisualizationPage />
                   </Layout>
                 </motion.div>
               } />
