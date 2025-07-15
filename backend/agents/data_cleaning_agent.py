@@ -81,17 +81,16 @@ class DataCleaningAgent:
                 if df[column].dtype in ['int64', 'float64']:
                     # Numeric column - use median for robustness
                     median_value = df[column].median()
-                    df[column].fillna(median_value, inplace=True)
+                    df[column] = df[column].fillna(median_value)
                     report["imputation_methods"][column] = "median"
                 elif df[column].dtype == 'object':
                     # Categorical column - use mode
                     mode_value = df[column].mode().iloc[0] if not df[column].mode().empty else "Unknown"
-                    df[column].fillna(mode_value, inplace=True)
+                    df[column] = df[column].fillna(mode_value)
                     report["imputation_methods"][column] = "mode"
                 else:
                     # Other types - use forward fill then backward fill
-                    df[column].fillna(method='ffill', inplace=True)
-                    df[column].fillna(method='bfill', inplace=True)
+                    df[column] = df[column].fillna(method='ffill').fillna(method='bfill')
                     report["imputation_methods"][column] = "forward_backward_fill"
         
         return df, report
@@ -99,7 +98,7 @@ class DataCleaningAgent:
     def _handle_duplicates(self, df: pd.DataFrame) -> Tuple[pd.DataFrame, Dict[str, Any]]:
         """Remove duplicate rows"""
         original_count = len(df)
-        df.drop_duplicates(inplace=True)
+        df = df.drop_duplicates()
         removed_count = original_count - len(df)
         
         report = {

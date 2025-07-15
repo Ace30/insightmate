@@ -69,10 +69,14 @@ async def upload_file(file: UploadFile = File(...)):
             "upload_time": datetime.now().isoformat()
         }
         
+        # Replace NaN values with None for JSON serialization
+        preview_df = df.head(5).replace({float('nan'): None, 'nan': None})
+        preview_data = preview_df.to_dict('records')
+        
         return JSONResponse(content={
             "message": "File uploaded successfully",
             "file_info": file_info,
-            "preview": df.head(5).to_dict('records')
+            "preview": preview_data
         })
         
     except HTTPException:
@@ -94,18 +98,36 @@ async def analyze_data(filename: str):
         file_path = Path("uploads") / filename
         if not file_path.exists():
             raise HTTPException(status_code=404, detail="File not found")
+        
+        print(f"Starting analysis for file: {filename}")
+        
         # Read data
+        print("Reading data...")
         df = data_service.read_file(file_path)
+        print(f"Data read successfully: {len(df)} rows, {len(df.columns)} columns")
+        
         # Clean data using AI agent
+        print("Cleaning data...")
         cleaned_df, cleaning_report = cleaning_agent.clean_data(df)
+        print("Data cleaning completed")
+        
         # Perform comprehensive analysis
+        print("Starting analysis...")
         analysis_results = analysis_service.analyze_data(cleaned_df)
+        print("Analysis completed")
+        
         # Generate insights
+        print("Generating insights...")
         insights = analysis_service.generate_insights(cleaned_df, analysis_results)
+        print("Insights generated")
+        
         # Create visualization data
+        print("Creating charts...")
         charts_data = analysis_service.create_charts_data(cleaned_df, analysis_results)
+        print("Charts created")
         
         # Convert all outputs to pure Python types for JSON serialization
+        print("Converting data types...")
         analysis_results = analysis_service._convert_numpy_to_python(analysis_results)
         insights = analysis_service._convert_numpy_to_python(insights)
         charts_data = analysis_service._convert_numpy_to_python(charts_data)
@@ -122,6 +144,33 @@ async def analyze_data(filename: str):
             "data_types": {k: str(v) for k, v in data_types.items()}
         }
         
+        # Replace NaN values with None for JSON serialization
+        cleaned_df_json = cleaned_df.replace({float('nan'): None, 'nan': None})
+        
+        # Convert raw_data to dict and ensure no NaN values remain
+        raw_data = cleaned_df_json.to_dict('records')
+        
+        # Recursively replace any remaining NaN values in ALL response data
+        def replace_nan_recursive(obj):
+            if isinstance(obj, dict):
+                return {k: replace_nan_recursive(v) for k, v in obj.items()}
+            elif isinstance(obj, list):
+                return [replace_nan_recursive(item) for item in obj]
+            elif isinstance(obj, float) and (obj != obj):  # Check for NaN
+                return None
+            else:
+                return obj
+        
+        # Apply NaN replacement to all response components
+        raw_data = replace_nan_recursive(raw_data)
+        analysis_results = replace_nan_recursive(analysis_results)
+        insights = replace_nan_recursive(insights)
+        charts_data = replace_nan_recursive(charts_data)
+        cleaning_report = replace_nan_recursive(cleaning_report)
+        data_summary = replace_nan_recursive(data_summary)
+        
+        print("Analysis completed successfully")
+        
         return JSONResponse(content={
             "message": "Analysis completed successfully",
             "cleaning_report": cleaning_report,
@@ -129,11 +178,13 @@ async def analyze_data(filename: str):
             "insights": insights,
             "charts_data": charts_data,
             "data_summary": data_summary,
-            "raw_data": cleaned_df.to_dict('records')
+            "raw_data": raw_data
         })
     except Exception as e:
         import traceback
         tb = traceback.format_exc()
+        print(f"Analysis error: {str(e)}")
+        print(f"Traceback: {tb}")
         raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}\nTraceback:\n{tb}")
 
 @router.get("/files")
@@ -200,8 +251,9 @@ async def get_file_data(filename: str, limit: int = 1000):
         if len(df) > limit:
             df = df.head(limit)
         
-        # Convert to records for JSON serialization
-        data = df.to_dict('records')
+        # Replace NaN values with None for JSON serialization
+        df_clean = df.replace({float('nan'): None, 'nan': None})
+        data = df_clean.to_dict('records')
         
         return JSONResponse(content={
             "message": "File data retrieved successfully",
@@ -248,6 +300,30 @@ async def generate_insights(filename: str, user_query: str = ""):
         charts_data = analysis_service._convert_numpy_to_python(charts_data)
         cleaning_report = analysis_service._convert_numpy_to_python(cleaning_report)
         
+        # Replace NaN values with None for JSON serialization
+        cleaned_df_json = cleaned_df.replace({float('nan'): None, 'nan': None})
+        
+        # Convert raw_data to dict and ensure no NaN values remain
+        raw_data = cleaned_df_json.to_dict('records')
+        
+        # Recursively replace any remaining NaN values in ALL response data
+        def replace_nan_recursive(obj):
+            if isinstance(obj, dict):
+                return {k: replace_nan_recursive(v) for k, v in obj.items()}
+            elif isinstance(obj, list):
+                return [replace_nan_recursive(item) for item in obj]
+            elif isinstance(obj, float) and (obj != obj):  # Check for NaN
+                return None
+            else:
+                return obj
+        
+        # Apply NaN replacement to all response components
+        raw_data = replace_nan_recursive(raw_data)
+        analysis_results = replace_nan_recursive(analysis_results)
+        charts_data = replace_nan_recursive(charts_data)
+        cleaning_report = replace_nan_recursive(cleaning_report)
+        nlg_insights = replace_nan_recursive(nlg_insights)
+        
         return JSONResponse(content={
             "message": "Natural language insights generated successfully",
             "nlg_insights": nlg_insights,
@@ -255,7 +331,7 @@ async def generate_insights(filename: str, user_query: str = ""):
             "charts_data": charts_data,
             "cleaning_report": cleaning_report,
             "user_query": user_query,
-            "raw_data": cleaned_df.to_dict('records')
+            "raw_data": raw_data
         })
         
     except Exception as e:

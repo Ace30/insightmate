@@ -238,9 +238,15 @@ class AnalysisService:
             if len(numeric_df.columns) < 2:
                 return {"message": "Insufficient numeric columns for clustering"}
             
+            # Remove rows with NaN values for clustering
+            numeric_df_clean = numeric_df.dropna()
+            
+            if len(numeric_df_clean) < 10:
+                return {"message": "Insufficient clean data for clustering"}
+            
             # Standardize the data
             scaler = StandardScaler()
-            scaled_data = scaler.fit_transform(numeric_df)
+            scaled_data = scaler.fit_transform(numeric_df_clean)
             
             # Perform clustering
             n_clusters = min(5, len(scaled_data) // 10)  # Adaptive number of clusters
@@ -251,18 +257,20 @@ class AnalysisService:
             clusters = kmeans.fit_predict(scaled_data)
             
             # Add cluster labels to dataframe
-            df_with_clusters = df.copy()
+            df_with_clusters = numeric_df_clean.copy()
             df_with_clusters['cluster'] = clusters
             
             return {
                 "n_clusters": n_clusters,
                 "cluster_sizes": df_with_clusters['cluster'].value_counts().to_dict(),
-                "cluster_centers": kmeans.cluster_centers_.tolist()
+                "cluster_centers": kmeans.cluster_centers_.tolist(),
+                "data_points_used": len(numeric_df_clean),
+                "data_points_excluded": len(numeric_df) - len(numeric_df_clean)
             }
             
         except Exception as e:
             logger.error(f"Error identifying clusters: {str(e)}")
-            return {}
+            return {"message": f"Clustering failed: {str(e)}"}
     
     def _analyze_distributions(self, df: pd.DataFrame) -> Dict[str, Any]:
         """Analyze distributions of numeric variables"""

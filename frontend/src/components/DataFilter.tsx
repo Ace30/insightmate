@@ -1,13 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { XMarkIcon, FunnelIcon } from '@heroicons/react/24/outline';
-
-interface FilterCondition {
-  column: string;
-  operator: string;
-  value: string | number;
-  type: 'numeric' | 'categorical';
-}
+import { FunnelIcon, XMarkIcon } from '@heroicons/react/24/outline';
 
 interface DataFilterProps {
   data: any[];
@@ -16,252 +9,244 @@ interface DataFilterProps {
   selectedColumns: string[];
 }
 
-const DataFilter: React.FC<DataFilterProps> = ({ 
-  data, 
-  columns, 
-  onFilterChange, 
-  selectedColumns 
+interface Filter {
+  column: string;
+  operator: 'equals' | 'contains' | 'greater_than' | 'less_than' | 'between';
+  value: string | number;
+  value2?: string | number;
+}
+
+const DataFilter: React.FC<DataFilterProps> = ({
+  data,
+  columns,
+  onFilterChange,
+  selectedColumns
 }) => {
-  const [filters, setFilters] = useState<FilterCondition[]>([]);
-  const [showAddFilter, setShowAddFilter] = useState(false);
-  const [newFilter, setNewFilter] = useState<Partial<FilterCondition>>({});
-
-  const numericOperators = ['>', '>=', '<', '<=', '==', '!='];
-  const categoricalOperators = ['==', '!=', 'contains', 'starts_with', 'ends_with'];
-
-  const isNumericColumn = (column: string) => {
-    const sampleValues = data.slice(0, 100).map(row => row[column]).filter(val => val !== null && val !== undefined);
-    return sampleValues.length > 0 && sampleValues.every(val => !isNaN(Number(val)));
-  };
-
-  const getColumnType = (column: string) => {
-    return isNumericColumn(column) ? 'numeric' : 'categorical';
-  };
-
-  const getUniqueValues = (column: string, limit = 20) => {
-    const values = Array.from(new Set(data.map(row => row[column]).filter(val => val !== null && val !== undefined)));
-    return values.slice(0, limit);
-  };
-
-  const applyFilters = (dataToFilter: any[], currentFilters: FilterCondition[]) => {
-    if (currentFilters.length === 0) return dataToFilter;
-
-    return dataToFilter.filter(row => {
-      return currentFilters.every(filter => {
-        const value = row[filter.column];
-        const filterValue = filter.value;
-
-        if (value === null || value === undefined) return false;
-
-        switch (filter.operator) {
-          case '>':
-            return Number(value) > Number(filterValue);
-          case '>=':
-            return Number(value) >= Number(filterValue);
-          case '<':
-            return Number(value) < Number(filterValue);
-          case '<=':
-            return Number(value) <= Number(filterValue);
-          case '==':
-            return String(value).toLowerCase() === String(filterValue).toLowerCase();
-          case '!=':
-            return String(value).toLowerCase() !== String(filterValue).toLowerCase();
-          case 'contains':
-            return String(value).toLowerCase().includes(String(filterValue).toLowerCase());
-          case 'starts_with':
-            return String(value).toLowerCase().startsWith(String(filterValue).toLowerCase());
-          case 'ends_with':
-            return String(value).toLowerCase().endsWith(String(filterValue).toLowerCase());
-          default:
-            return true;
-        }
-      });
-    });
-  };
+  const [filters, setFilters] = useState<Filter[]>([]);
+  const [isNumericColumn, setIsNumericColumn] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
-    const filteredData = applyFilters(data, filters);
-    onFilterChange(filteredData);
-  }, [filters, data, onFilterChange]);
+    // Determine which columns are numeric
+    const numericColumns: Record<string, boolean> = {};
+    columns.forEach(column => {
+      const sampleValues = data.slice(0, 100).map(row => row[column]).filter(val => val !== null && val !== undefined);
+      numericColumns[column] = sampleValues.length > 0 && sampleValues.every(val => !isNaN(Number(val)));
+    });
+    setIsNumericColumn(numericColumns);
+  }, [data, columns]);
+
+  useEffect(() => {
+    applyFilters();
+  }, [filters, data]);
 
   const addFilter = () => {
-    if (newFilter.column && newFilter.operator && newFilter.value !== undefined) {
-      const filter: FilterCondition = {
-        column: newFilter.column!,
-        operator: newFilter.operator!,
-        value: newFilter.value!,
-        type: getColumnType(newFilter.column!)
-      };
-      setFilters([...filters, filter]);
-      setNewFilter({});
-      setShowAddFilter(false);
-    }
+    const newFilter: Filter = {
+      column: columns[0] || '',
+      operator: 'equals',
+      value: ''
+    };
+    setFilters([...filters, newFilter]);
   };
 
   const removeFilter = (index: number) => {
     setFilters(filters.filter((_, i) => i !== index));
   };
 
-  const updateNewFilter = (field: keyof FilterCondition, value: string | number) => {
-    setNewFilter({ ...newFilter, [field]: value });
+  const updateFilter = (index: number, field: keyof Filter, value: any) => {
+    const updatedFilters = [...filters];
+    updatedFilters[index] = { ...updatedFilters[index], [field]: value };
+    setFilters(updatedFilters);
+  };
+
+  const applyFilters = () => {
+    if (filters.length === 0) {
+      onFilterChange(data);
+      return;
+    }
+
+    const filteredData = data.filter(row => {
+      return filters.every(filter => {
+        const cellValue = row[filter.column];
+        
+        if (cellValue === null || cellValue === undefined) {
+          return false;
+        }
+
+        switch (filter.operator) {
+          case 'equals':
+            return String(cellValue).toLowerCase() === String(filter.value).toLowerCase();
+          
+          case 'contains':
+            return String(cellValue).toLowerCase().includes(String(filter.value).toLowerCase());
+          
+          case 'greater_than':
+            if (!isNumericColumn[filter.column]) return false;
+            return Number(cellValue) > Number(filter.value);
+          
+          case 'less_than':
+            if (!isNumericColumn[filter.column]) return false;
+            return Number(cellValue) < Number(filter.value);
+          
+          case 'between':
+            if (!isNumericColumn[filter.column] || filter.value2 === undefined) return false;
+            const numValue = Number(cellValue);
+            return numValue >= Number(filter.value) && numValue <= Number(filter.value2);
+          
+          default:
+            return true;
+        }
+      });
+    });
+
+    onFilterChange(filteredData);
+  };
+
+  const clearAllFilters = () => {
+    setFilters([]);
+  };
+
+  const getUniqueValues = (column: string) => {
+    const values = Array.from(new Set(data.map(row => row[column]).filter(val => val !== null && val !== undefined)));
+    return values.slice(0, 20); // Limit to 20 unique values
   };
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="bg-white rounded-xl p-6 border border-gray-100"
-    >
+    <div className="bg-white rounded-xl p-6 border border-gray-100">
       <div className="flex items-center justify-between mb-6">
-        <h3 className="text-lg font-semibold text-gray-900">Data Filters</h3>
+        <h3 className="text-lg font-semibold text-gray-900 flex items-center">
+          <FunnelIcon className="h-5 w-5 text-blue-600 mr-2" />
+          Data Filters
+        </h3>
+        <div className="flex items-center space-x-2">
+          <button
+            onClick={clearAllFilters}
+            className="px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors"
+          >
+            Clear All
+          </button>
+          <span className="text-sm text-gray-500">
+            {filters.length} filter{filters.length !== 1 ? 's' : ''} active
+          </span>
+        </div>
+      </div>
+
+      {/* Filter Controls */}
+      <div className="space-y-4">
+        {filters.map((filter, index) => (
+          <motion.div
+            key={index}
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            className="flex items-center space-x-3 p-4 bg-gray-50 rounded-lg"
+          >
+            {/* Column Select */}
+            <select
+              value={filter.column}
+              onChange={(e) => updateFilter(index, 'column', e.target.value)}
+              className="flex-1 p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              aria-label={`Select column for filter ${index + 1}`}
+            >
+              {columns.map(column => (
+                <option key={column} value={column}>{column}</option>
+              ))}
+            </select>
+
+            {/* Operator Select */}
+            <select
+              value={filter.operator}
+              onChange={(e) => updateFilter(index, 'operator', e.target.value)}
+              className="flex-1 p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              aria-label={`Select operator for filter ${index + 1}`}
+            >
+              <option value="equals">Equals</option>
+              <option value="contains">Contains</option>
+              {isNumericColumn[filter.column] && (
+                <>
+                  <option value="greater_than">Greater Than</option>
+                  <option value="less_than">Less Than</option>
+                  <option value="between">Between</option>
+                </>
+              )}
+            </select>
+
+            {/* Value Input */}
+            <div className="flex-1 flex space-x-2">
+              {filter.operator === 'between' ? (
+                <>
+                  <input
+                    type={isNumericColumn[filter.column] ? 'number' : 'text'}
+                    value={filter.value}
+                    onChange={(e) => updateFilter(index, 'value', e.target.value)}
+                    placeholder="Min"
+                    className="flex-1 p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                  <input
+                    type={isNumericColumn[filter.column] ? 'number' : 'text'}
+                    value={filter.value2 || ''}
+                    onChange={(e) => updateFilter(index, 'value2', e.target.value)}
+                    placeholder="Max"
+                    className="flex-1 p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </>
+              ) : filter.operator === 'equals' && !isNumericColumn[filter.column] ? (
+                <select
+                  value={filter.value}
+                  onChange={(e) => updateFilter(index, 'value', e.target.value)}
+                  className="flex-1 p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  aria-label={`Select value for filter ${index + 1}`}
+                >
+                  <option value="">Select value</option>
+                  {getUniqueValues(filter.column).map(value => (
+                    <option key={value} value={value}>{value}</option>
+                  ))}
+                </select>
+              ) : (
+                <input
+                  type={isNumericColumn[filter.column] ? 'number' : 'text'}
+                  value={filter.value}
+                  onChange={(e) => updateFilter(index, 'value', e.target.value)}
+                  placeholder="Enter value"
+                  className="flex-1 p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              )}
+            </div>
+
+            {/* Remove Filter Button */}
+            <button
+              onClick={() => removeFilter(index)}
+              className="p-2 text-red-500 hover:bg-red-50 rounded-md transition-colors"
+              aria-label={`Remove filter ${index + 1}`}
+              title={`Remove filter ${index + 1}`}
+            >
+              <XMarkIcon className="h-4 w-4" />
+            </button>
+          </motion.div>
+        ))}
+
+        {/* Add Filter Button */}
         <button
-          onClick={() => setShowAddFilter(!showAddFilter)}
-          className="flex items-center gap-2 px-3 py-1.5 bg-blue-100 text-blue-700 rounded-lg text-sm font-medium hover:bg-blue-200 transition-colors"
+          onClick={addFilter}
+          className="w-full p-3 border-2 border-dashed border-gray-300 rounded-lg text-gray-500 hover:border-blue-400 hover:text-blue-600 transition-colors"
         >
-          <FunnelIcon className="h-4 w-4" />
-          Add Filter
+          + Add Filter
         </button>
       </div>
 
-      {/* Active Filters */}
+      {/* Filter Summary */}
       {filters.length > 0 && (
-        <div className="mb-6">
-          <h4 className="text-sm font-medium text-gray-700 mb-3">Active Filters</h4>
-          <div className="space-y-2">
+        <div className="mt-4 p-3 bg-blue-50 rounded-lg">
+          <h4 className="text-sm font-medium text-blue-900 mb-2">Active Filters:</h4>
+          <div className="space-y-1">
             {filters.map((filter, index) => (
-              <div
-                key={index}
-                className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg"
-              >
-                <span className="text-sm font-medium text-gray-900">{filter.column}</span>
-                <span className="text-sm text-gray-600">{filter.operator}</span>
-                <span className="text-sm text-gray-700 bg-white px-2 py-1 rounded border">
-                  {String(filter.value)}
-                </span>
-                <button
-                  onClick={() => removeFilter(index)}
-                  className="ml-auto p-1 text-gray-400 hover:text-red-500 transition-colors"
-                  title="Remove filter"
-                  aria-label="Remove filter"
-                >
-                  <XMarkIcon className="h-4 w-4" />
-                </button>
+              <div key={index} className="text-sm text-blue-700">
+                {filter.column} {filter.operator} {filter.value}
+                {filter.operator === 'between' && filter.value2 && ` and ${filter.value2}`}
               </div>
             ))}
           </div>
         </div>
       )}
-
-      {/* Add Filter Form */}
-      {showAddFilter && (
-        <motion.div
-          initial={{ opacity: 0, height: 0 }}
-          animate={{ opacity: 1, height: 'auto' }}
-          exit={{ opacity: 0, height: 0 }}
-          className="mb-6 p-4 bg-gray-50 rounded-lg"
-        >
-          <h4 className="text-sm font-medium text-gray-700 mb-3">Add New Filter</h4>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-            {/* Column Selection */}
-            <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">
-                Column
-              </label>
-              <select
-                value={newFilter.column || ''}
-                onChange={(e) => updateNewFilter('column', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                aria-label="Select column for filtering"
-              >
-                <option value="">Select column</option>
-                {columns.map((column) => (
-                  <option key={column} value={column}>
-                    {column} ({getColumnType(column)})
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* Operator Selection */}
-            <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">
-                Operator
-              </label>
-                             <select
-                 value={newFilter.operator || ''}
-                 onChange={(e) => updateNewFilter('operator', e.target.value)}
-                 className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                 disabled={!newFilter.column}
-                 aria-label="Select filter operator"
-               >
-                <option value="">Select operator</option>
-                {newFilter.column && getColumnType(newFilter.column) === 'numeric' ? (
-                  numericOperators.map((op) => (
-                    <option key={op} value={op}>
-                      {op}
-                    </option>
-                  ))
-                ) : (
-                  categoricalOperators.map((op) => (
-                    <option key={op} value={op}>
-                      {op}
-                    </option>
-                  ))
-                )}
-              </select>
-            </div>
-
-            {/* Value Input */}
-            <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">
-                Value
-              </label>
-              {newFilter.column && getColumnType(newFilter.column) === 'categorical' ? (
-                                 <select
-                   value={newFilter.value || ''}
-                   onChange={(e) => updateNewFilter('value', e.target.value)}
-                   className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                   aria-label="Select filter value"
-                 >
-                  <option value="">Select value</option>
-                  {getUniqueValues(newFilter.column).map((value) => (
-                    <option key={value} value={value}>
-                      {value}
-                    </option>
-                  ))}
-                </select>
-              ) : (
-                <input
-                  type="number"
-                  value={newFilter.value || ''}
-                  onChange={(e) => updateNewFilter('value', e.target.value)}
-                  placeholder="Enter value"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                />
-              )}
-            </div>
-
-            {/* Add Button */}
-            <div className="flex items-end">
-              <button
-                onClick={addFilter}
-                disabled={!newFilter.column || !newFilter.operator || newFilter.value === undefined}
-                className="w-full px-4 py-2 bg-blue-600 text-white rounded-md text-sm font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                Add Filter
-              </button>
-            </div>
-          </div>
-        </motion.div>
-      )}
-
-      {/* Filter Summary */}
-      {filters.length > 0 && (
-        <div className="text-sm text-gray-600">
-          Showing {applyFilters(data, filters).length} of {data.length} rows
-        </div>
-      )}
-    </motion.div>
+    </div>
   );
 };
 
