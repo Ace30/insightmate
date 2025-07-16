@@ -29,6 +29,8 @@ async def upload_file(file: UploadFile = File(...)):
     try:
         # Validate file type
         allowed_extensions = {'.csv', '.xlsx', '.xls', '.json', '.parquet'}
+        if not file.filename:
+            raise HTTPException(status_code=400, detail="No filename provided")
         file_extension = Path(file.filename).suffix.lower()
         
         if file_extension not in allowed_extensions:
@@ -337,4 +339,39 @@ async def generate_insights(filename: str, user_query: str = ""):
     except Exception as e:
         import traceback
         tb = traceback.format_exc()
-        raise HTTPException(status_code=500, detail=f"Insights generation failed: {str(e)}\nTraceback:\n{tb}") 
+        raise HTTPException(status_code=500, detail=f"Insights generation failed: {str(e)}\nTraceback:\n{tb}")
+
+@router.post("/save-data/{filename}")
+async def save_modified_data(filename: str, data: List[Dict[str, Any]]):
+    """
+    Save modified data back to file
+    """
+    try:
+        file_path = Path("uploads") / filename
+        if not file_path.exists():
+            raise HTTPException(status_code=404, detail="File not found")
+        
+        # Convert data back to DataFrame
+        df = pd.DataFrame(data)
+        
+        # Determine file type and save accordingly
+        if filename.endswith('.csv'):
+            df.to_csv(file_path, index=False)
+        elif filename.endswith('.xlsx') or filename.endswith('.xls'):
+            df.to_excel(file_path, index=False)
+        elif filename.endswith('.json'):
+            df.to_json(file_path, orient='records', indent=2)
+        else:
+            # Default to CSV
+            df.to_csv(file_path, index=False)
+        
+        return JSONResponse(content={
+            "message": f"Data saved successfully to {filename}",
+            "rows_saved": len(df),
+            "columns_saved": len(df.columns)
+        })
+        
+    except Exception as e:
+        import traceback
+        tb = traceback.format_exc()
+        raise HTTPException(status_code=500, detail=f"Failed to save data: {str(e)}\nTraceback:\n{tb}") 

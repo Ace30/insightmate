@@ -88,6 +88,38 @@ const InteractiveVisualizationPage: React.FC = () => {
     setChartType(type);
   };
 
+  const handleDataChange = (newData: any[]) => {
+    // Update the local data state
+    setFileData(newData);
+    // Update filtered data if needed
+    setFilteredData(newData);
+  };
+
+  const handleSaveData = async (data: any[]) => {
+    if (!currentFile) return;
+    
+    try {
+      const response = await fetch(`/api/data/save-data/${currentFile.filename}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data),
+      });
+      
+      if (response.ok) {
+        const result = await response.json();
+        alert(`Data saved successfully! ${result.rows_saved} rows and ${result.columns_saved} columns saved.`);
+      } else {
+        const error = await response.json();
+        alert(`Failed to save data: ${error.detail}`);
+      }
+    } catch (error) {
+      console.error('Error saving data:', error);
+      alert('Failed to save data. Please try again.');
+    }
+  };
+
   if (!currentFile) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-primary-50 via-white to-accent-50">
@@ -216,6 +248,9 @@ const InteractiveVisualizationPage: React.FC = () => {
                 columns={columns}
                 onColumnSelect={handleColumnSelect}
                 selectedColumns={selectedColumns}
+                onDataChange={handleDataChange}
+                onSaveData={handleSaveData}
+                filename={currentFile?.filename}
               />
             </motion.div>
           )}
@@ -255,7 +290,7 @@ const InteractiveVisualizationPage: React.FC = () => {
               {/* Interactive Chart */}
               {selectedColumns.length > 0 && chartType && (
                 <InteractiveChart
-                  data={filteredData}
+                  data={rawData}
                   selectedColumns={selectedColumns}
                   chartType={chartType}
                   title={`${chartType.charAt(0).toUpperCase() + chartType.slice(1)} Chart`}
